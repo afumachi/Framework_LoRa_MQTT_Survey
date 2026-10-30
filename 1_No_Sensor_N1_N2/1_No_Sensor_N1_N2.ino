@@ -65,9 +65,9 @@
 // Parâmetros do LoRa
 #define FREQUENCY_IN_HZ       903E6     // Frequência de operação
 #define txPower               17        // Potência de transmissão 17 dBm
-#define spreadingFactor       12        // Configuração SRC = 7     |  LRC=12
-#define signalBandwidth       125E3    // Configuração SRC = 500E3  |  LRC=125E3
-#define codingRateDenominator 8         // Configuração SRC = 5     |  LRC=8 
+#define spreadingFactor       7        // Configuração SRC = 7     |  LRC=12
+#define signalBandwidth       500E3    // Configuração SRC = 500E3  |  LRC=125E3
+#define codingRateDenominator 5         // Configuração SRC = 5     |  LRC=8 
 
 // Váriáveis utilizadas no código
 int RSSI_dBm_DL; // Variável com a potência rádio recebida (RSSI) em dBm

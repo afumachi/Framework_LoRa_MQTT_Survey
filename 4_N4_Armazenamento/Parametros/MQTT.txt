@@ -1,8 +1,8 @@
-1
+0
 2000
-4
+1.5
 www.tpm.dev.br
 1883
-mot_mqtt_AAF/gateway/downlink
-mot_mqtt_AAF/gateway/uplink
+mot_mqtt_194104/gateway/downlink
+mot_mqtt_194104/gateway/uplink
 1

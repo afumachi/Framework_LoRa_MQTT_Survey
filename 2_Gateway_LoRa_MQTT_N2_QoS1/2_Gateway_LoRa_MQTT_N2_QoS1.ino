@@ -1,22 +1,23 @@
 /*
 //  MoT LoRa | WissTek IoT
-//  Versão MQTT com QoS1: comunicação Python N2_N3 ↔ Gateway PKLoRa via broker.hivemq.com
-//  - Mantém toda a camada de rádio LoRa (RFM95) do Framework Basic
-//  - Substitui USB/Serial por Wi-Fi + MQTT
+//
+//  Implementa o Gateway LoRa MQTT
+//
+//  Versão Gateway LoRa MQTT com QoS1: Gateway PKLoRa via broker MQTT ↔ comunicação Borda IoT Python N2_N3
+//  - Mantém toda a camada de rádio LoRa (RFM95) do Framework Basic Local
+//  - Substitui USB/Serial por Wi-Fi + MQTT [PHY]
 //  - Usa a biblioteca MQTT by Joel Gaehwiler Vs. 2.5.3 (MQTT.h) para suportar QoS1 (MQTT com ACK)
 //
-//  Tópicos Publicados no Broker MQTT - broker.hivemq.com
+//  Tópicos Publicados no Broker MQTT
 //
-//  - DL: assina "mot_lora_SEU_NOME/gateway/downlink"  
+//  - DL: assina "mot_lora_SEU_RA/gateway/downlink"  
 //    Gateway LoRa ← realiza leitura via Broker MQTT da publicação do Tópico de Downlink do Python
 //
-//  - UL: publica em "mot_lora_SEU_NOME/gateway/uplink"
+//  - UL: publica em "mot_lora_SEU_RA/gateway/uplink"
 //    Gateway → publica Tópico de Uplink ao Broker MQTT - Python N2_N3 realiza a leitura
-//
 //
 //  Última Modificação: Branquinho / Guilherme / Luís Felipe / Anderson - 17/10/2026
 //
-//  Vs.1 - Modificado Broker MQTT de Hivemq para Broker Mosquitto
 */
 
 // =====================================================================
@@ -27,13 +28,14 @@
 #include <WiFi.h>
 #include <WiFiMulti.h>
 #include <MQTT.h>   // 256dpi/arduino-mqtt -- instalar via Library Manager: "MQTT" by 256dpi
+                    // MQTT by Joel Gaehwiler Vs. 2.5.3 (MQTT.h)
 
 // =====================================================================
 //                     2 - Configurações Wi-Fi
 // =====================================================================
 // Instancia o objeto WiFiMulti
 WiFiMulti wifiMulti;
-// --- Objeto Wi-Fi ---
+// --- Objeto Wi-Fi Client ---
 WiFiClient wifiClient;
 
 // =====================================================================
@@ -49,7 +51,6 @@ WiFiClient wifiClient;
 // Configurações do Broker HiveMQ (Usando o broker público oficial)
 const char* MQTT_BROKER   = "www.tpm.dev.br";
 
-
 const int   MQTT_PORT     = 1883;
 const char* TOPIC_DL      = "mot_mqtt_194104/gateway/downlink";  // Python → ESP32
 const char* TOPIC_UL      = "mot_mqtt_194104/gateway/uplink";    // ESP32  → Python
@@ -63,17 +64,18 @@ const int MQTT_QOS = 1;
 // --- Objeto MQTT ---
 MQTTClient mqttClient(256);   // buffer de 256 bytes (read/write)
 
+// =====================================================================
+//                     4 - Configurações Wi-Fi
+// =====================================================================
+
 void wifi_mqtt(){
   // Cadastre quantas redes você quiser (SSID, Senha)
-  wifiMulti.addAP("COLETTI_ADV_CRIS", "45384609");
-  wifiMulti.addAP("MJCA_FUNDOS", "21092429MJC@");
-	wifiMulti.addAP("aafwifi", "aaf12345678");
-	wifiMulti.addAP("CHACARA BBC", "Ailton1960#");
-	wifiMulti.addAP("Claro-EB66", "54b80a7deb66");
+  wifiMulti.addAP("SSID_1", "Senha_1");
+  wifiMulti.addAP("SSID_2", "Senha_2");
 
 }
 // =====================================================================
-//                     4 - Pinagem RFM95 (Kit PKLORa)
+//                     5 - Pinagem ESP32 <-> RFM95 (Kit PKLORa Vs3.1)
 // =====================================================================
 #define SCK_PIN    5
 #define MISO_PIN  19
@@ -83,36 +85,37 @@ void wifi_mqtt(){
 #define DIO0_PIN  26
 
 // =====================================================================
-//                     5 - Parâmetros LoRa
+//                     6 - Parâmetros LoRa
 // =====================================================================
-#define FREQUENCY_IN_HZ       903E6
-#define txPower               17
-#define spreadingFactor       12
-#define signalBandwidth       125E3
-#define codingRateDenominator 8
+#define FREQUENCY_IN_HZ       903E6     // Frequência de operação
+#define txPower               14        // Potência de transmissão 17 dBm
+#define spreadingFactor       7        // Configuração SRC = 7     |  LRC=12
+#define signalBandwidth       500E3    // Configuração SRC = 500E3  |  LRC=125E3
+#define codingRateDenominator 5         // Configuração SRC = 5     |  LRC=8 
 
 // =====================================================================
-//                     6 - Pinos de LED
+//                     7 - Pinos de LED
 // =====================================================================
 #define LED_VERMELHO_PIN 15
 #define LED_VERDE_PIN     4
 
 // =====================================================================
-//                     7 - Variáveis do Gateway
+//                     8 - Variáveis do Gateway
 // =====================================================================
 #define Tamanho_pacote 20
 
 byte  PacoteDL[Tamanho_pacote];
 byte  PacoteUL[Tamanho_pacote];
-int   ID_gateway;
+uint8_t   ID_gateway;
 
 int       RSSI_dBm_UL;
 int       RSSI_UL;
 float     SNR_UL;
 uint8_t   SNR_UL_inteiro;
 int       Conta_Pacote_DL = 0;
+
 // =====================================================================
-//                     8 - Variáveis MQTT
+//                     9 - Variáveis MQTT
 // =====================================================================
 
 // --- Buffer e flag para o pacote DL recebido via MQTT ---
@@ -120,13 +123,16 @@ volatile bool mqtt_dl_disponivel = false;
 byte          mqtt_dl_payload[Tamanho_pacote];
 
 // =====================================================================
-//                    9 - Setup
+//                    10 - Setup
 // =====================================================================
 void setup() {
   Serial.begin(115200);
   // Aguarda para estabilização da Serial
   delay(20);
+
+  // Chama a função das redes WiFi para conexão
   wifi_mqtt();
+
   // O wifiMulti.run() tenta conectar a uma das redes cadastradas
   // Ele retorna WL_CONNECTED quando consegue se conectar com sucesso
   while (wifiMulti.run() != WL_CONNECTED) {
@@ -144,6 +150,7 @@ void setup() {
   // Declara os pinos dos LEDs como saídas digitais
   pinMode(LED_VERMELHO_PIN, OUTPUT);
   pinMode(LED_VERDE_PIN,    OUTPUT);
+
   // Inicia os LEDs apagados
   digitalWrite(LED_VERMELHO_PIN, LOW);
   digitalWrite(LED_VERDE_PIN,    LOW);
@@ -151,8 +158,7 @@ void setup() {
   CLIENT_ID = "esp32_gateway+lora_" + String(WiFi.macAddress());
   CLIENT_ID.replace(":", "");
 
-
-  // ---------- Inicia MQTT ----------
+  // ---------- Inicia conexão com broker MQTT ----------
   mqttClient.begin(MQTT_BROKER, MQTT_PORT, wifiClient);
   mqttClient.onMessageAdvanced(mqtt_callback);
   conectar_mqtt();
@@ -166,6 +172,7 @@ void setup() {
     while (true) { delay(1000); }
   }
 
+  // configura os parâmetros de rádio LoRa no RFM95
   LoRa.setTxPower(txPower);
   LoRa.setSpreadingFactor(spreadingFactor);
   LoRa.setSignalBandwidth(signalBandwidth);
@@ -174,7 +181,7 @@ void setup() {
   Serial.println("[LoRa] Gateway inicializado com sucesso!");
   Serial.println("[INFO] Aguardando pacotes DL via MQTT (QoS1)...");
 
-  // Pisca verde 1x → tudo OK
+  // Pisca verde - tudo OK
   digitalWrite(LED_VERDE_PIN, HIGH);
   delay(1000);
   digitalWrite(LED_VERDE_PIN, LOW);

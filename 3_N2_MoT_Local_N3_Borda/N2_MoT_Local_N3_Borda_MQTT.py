@@ -236,7 +236,7 @@ def uplink():
       if len(Pacote_UL) == Tamanho_pacote:
          pacote_recebido = 1
          St_LED_amarelo = Pacote_UL[16]
-         #print('Pacote = ', medida_atual, ' | Pacote UL recebido | STATUS LED = ', St_LED_amarelo)
+         print('Pacote = ', medida_atual, ' | Pacote UL recebido | STATUS LED = ', St_LED_amarelo)
    else:
       pacote_recebido = 0
 
@@ -298,10 +298,11 @@ try:
                 
                 downlink()
 
-                time.sleep(0.5)#(tempo_entre_pacotes)
+                time.sleep(tempo_entre_pacotes)
+                
                 pacote_recebido = 0
+
                 uplink()
-                #print("Pacote Recebido: ", pacote_recebido)
                 
                 if (pacote_recebido == 1):    
                    Dados_DL = ''
