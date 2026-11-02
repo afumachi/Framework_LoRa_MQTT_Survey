@@ -30,6 +30,8 @@
 #define NSS_PIN   18
 #define RST_PIN   14
 #define DIO0_PIN  26
+#define DIO1_PIN  35
+#define DIO2_PIN  34
 
 // ============= CAMADA DE APLICAÇÃO
 // Pinos da PK-LoRa
